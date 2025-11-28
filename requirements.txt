@@ -1,0 +1,18 @@
+# MCP Server dependencies
+mcp>=1.0.0
+
+# Neo4j driver
+neo4j>=5.0.0
+
+# Configuration management
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Logging and monitoring
+structlog>=23.0.0
+
+# Development tools
+black>=23.0.0
+ruff>=0.1.0
+mypy>=1.0.0
+
