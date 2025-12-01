@@ -1,65 +1,94 @@
-"""
-Neo4j database connection client
-"""
+"""Neo4j connection and session management."""
 
+from __future__ import annotations
+
+import logging
+from contextlib import contextmanager
 from typing import Optional
-from neo4j import AsyncGraphDatabase, AsyncDriver
+
+from neo4j import Driver, GraphDatabase, Session
+
+from ..config import Config
+
+logger = logging.getLogger(__name__)
 
 
 class Neo4jClient:
-    """Neo4j database connection client - handles connection management only"""
-    
-    def __init__(self, uri: str, user: str, password: str):
-        """
-        Initialize Neo4j client with connection credentials
-        
-        Args:
-            uri: Neo4j database URI (e.g., 'bolt://localhost:7687' or 'neo4j://localhost:7687')
-            user: Neo4j username
-            password: Neo4j password
-        """
-        self.uri = uri
-        self.user = user
-        self.password = password
-        self._driver: Optional[AsyncDriver] = None
-    
-    async def connect(self):
-        """Establish connection to Neo4j database and verify connectivity"""
+    """Neo4j database client with connection pooling."""
+
+    def __init__(self, config: Optional[Config] = None) -> None:
+        """Initialize Neo4j client with configuration."""
+        self.config = config or Config()
+        self._driver: Optional[Driver] = None
+
+    def connect(self) -> None:
+        """Establish connection to Neo4j database."""
         if self._driver is None:
-            self._driver = AsyncGraphDatabase.driver(
-                self.uri,
-                auth=(self.user, self.password)
+            if not self.config.neo4j_password:
+                logger.error(
+                    "NEO4J_PASSWORD not set in environment variables or .env file"
+                )
+                raise ValueError(
+                    "NEO4J_PASSWORD must be set in environment variables or .env file"
+                )
+
+            self._driver = GraphDatabase.driver(
+                str(self.config.neo4j_uri),
+                auth=(self.config.neo4j_username, self.config.neo4j_password),
+                max_connection_lifetime=self.config.neo4j_max_connection_lifetime,
+                max_connection_pool_size=self.config.neo4j_max_connection_pool_size,
             )
-            # Verify connectivity
-            await self._driver.verify_connectivity()
-    
-    @property
-    def driver(self) -> AsyncDriver:
-        """
-        Get the Neo4j driver instance
-        
-        Returns:
-            AsyncDriver instance
-            
-        Raises:
-            RuntimeError: If driver is not connected
-        """
-        if self._driver is None:
-            raise RuntimeError("Driver not connected. Call connect() first or use async context manager.")
-        return self._driver
-    
-    async def close(self):
-        """Close the database connection"""
+
+            # Verify connectivity immediately - driver creation is lazy and doesn't
+            # actually connect.
+            try:
+                self._driver.verify_connectivity()
+            except Exception as e:
+                logger.error(f"Failed to connect to Neo4j: {e}")
+                self._driver.close()
+                self._driver = None
+                raise ConnectionError(
+                    f"Cannot connect to Neo4j database at {self.config.neo4j_uri}. "
+                    "Please ensure Neo4j is running and accessible."
+                ) from e
+
+    def close(self) -> None:
+        """Close the Neo4j driver connection."""
         if self._driver is not None:
-            await self._driver.close()
+            self._driver.close()
             self._driver = None
-    
-    async def __aenter__(self):
-        """Async context manager entry"""
-        await self.connect()
+
+    @contextmanager
+    def session(self, **kwargs) -> Session:
+        """Context manager for Neo4j session."""
+        if self._driver is None:
+            self.connect()
+
+        assert self._driver is not None  # for type checkers
+        session = self._driver.session(database=self.config.neo4j_database, **kwargs)
+        try:
+            yield session
+        finally:
+            session.close()
+
+    def verify_connectivity(self) -> bool:
+        """Verify connection to Neo4j database."""
+        try:
+            if self._driver is None:
+                self.connect()
+            assert self._driver is not None
+            self._driver.verify_connectivity()
+            return True
+        except Exception as e:
+            logger.error("Neo4j connectivity check failed: %s", e, exc_info=True)
+            return False
+
+    def __enter__(self) -> "Neo4jClient":
+        """Context manager entry."""
+        self.connect()
         return self
-    
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit"""
-        await self.close()
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Context manager exit."""
+        self.close()
 
