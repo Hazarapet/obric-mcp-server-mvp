@@ -46,8 +46,8 @@ class CoreDB:
         """Build MATCH/WHERE clause for entity identification (CoreDB version).
 
         Priority:
-        1. Internal Neo4j node id
-        2. Ticker
+        1. Internal Neo4j node id (exact match)
+        2. Ticker (case-insensitive exact match)
         3. Short name / legal name (fuzzy CONTAINS search)
         """
         # Normalize inputs
@@ -62,11 +62,11 @@ class CoreDB:
             match_clause = f"MATCH ({entity_var}) WHERE {entity_var}.id = $id"
             params["id"] = id
 
-        # 2) Second priority: ticker
+        # 2) Second priority: ticker (exact, case-insensitive match)
         elif ticker is not None:
             match_clause = (
                 f"MATCH ({entity_var}:Entity) "
-                f"WHERE toLower({entity_var}.ticker) CONTAINS toLower($ticker)"
+                f"WHERE toLower({entity_var}.ticker) = toLower($ticker)"
             )
             params["ticker"] = ticker
 

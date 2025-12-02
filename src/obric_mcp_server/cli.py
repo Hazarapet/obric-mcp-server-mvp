@@ -192,6 +192,54 @@ def _cmd_find_directed_paths(args: argparse.Namespace) -> None:
     }
     print(json.dumps(result, indent=2, sort_keys=True))
 
+
+def _cmd_find_directed_paths_with_relationship_details(
+    args: argparse.Namespace,
+) -> None:
+    """Find all directed paths (entities + RelationshipDetails) between two entities."""
+
+    config = Config()
+    client = Neo4jClient(config=config)
+
+    with client:
+        path_db = PathDB(client)
+        paths = path_db.find_directed_paths_with_relationship_details(
+            id1=args.id1,
+            ticker1=args.ticker1,
+            short_name1=args.short_name1,
+            legal_name1=args.legal_name1,
+            id2=args.id2,
+            ticker2=args.ticker2,
+            short_name2=args.short_name2,
+            legal_name2=args.legal_name2,
+            direction=args.direction,
+            max_tier=args.max_tier,
+        )
+
+    # Serialize each path as list of segments {from, relationship_detail, to}
+    serializable_paths = []
+    for path in paths:
+        serializable_segments = []
+        for seg in path:
+            serializable_segments.append(
+                {
+                    "from": _to_serializable(seg["from"]),
+                    "relationship_detail": _to_serializable(
+                        seg["relationship_detail"]
+                    ),
+                    "to": _to_serializable(seg["to"]),
+                }
+            )
+        serializable_paths.append(serializable_segments)
+
+    result: Dict[str, Any] = {
+        "count": len(serializable_paths),
+        "direction": args.direction,
+        "tier": args.max_tier,
+        "paths": serializable_paths,
+    }
+    print(json.dumps(result, indent=2, sort_keys=True))
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="CLI for testing Obric MCP Neo4j functions",
@@ -315,7 +363,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_has_path.set_defaults(func=_cmd_has_directed_path)
 
-    # find-paths command
+    # find-directed-paths command
     p_find_paths = subparsers.add_parser(
         "find-directed-paths",
         help="Find all directed paths between two entities (as sequences of entities)",
@@ -360,6 +408,57 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum entity tier distance to consider for each path",
     )
     p_find_paths.set_defaults(func=_cmd_find_directed_paths)
+
+    # find-directed-paths-with-relationship-details command
+    p_find_paths_details = subparsers.add_parser(
+        "find-directed-paths-with-details",
+        help=(
+            "Find all directed paths between two entities, including "
+            "RelationshipDetail segments"
+        ),
+    )
+    # Entity 1 arguments
+    p_find_paths_details.add_argument(
+        "--id1", type=str, help="Neo4j internal node id for first entity", dest="id1"
+    )
+    p_find_paths_details.add_argument(
+        "--ticker1", type=str, help="Ticker symbol for first entity"
+    )
+    p_find_paths_details.add_argument(
+        "--short-name1", type=str, help="Short name text for first entity"
+    )
+    p_find_paths_details.add_argument(
+        "--legal-name1", type=str, help="Legal name text for first entity"
+    )
+    # Entity 2 arguments
+    p_find_paths_details.add_argument(
+        "--id2", type=str, help="Neo4j internal node id for second entity", dest="id2"
+    )
+    p_find_paths_details.add_argument(
+        "--ticker2", type=str, help="Ticker symbol for second entity"
+    )
+    p_find_paths_details.add_argument(
+        "--short-name2", type=str, help="Short name text for second entity"
+    )
+    p_find_paths_details.add_argument(
+        "--legal-name2", type=str, help="Legal name text for second entity"
+    )
+    p_find_paths_details.add_argument(
+        "--direction",
+        type=str,
+        choices=["inbound", "outbound"],
+        default="outbound",
+        help='Direction of flow: "outbound" (entity1 -> entity2) or "inbound" (entity1 <- entity2)',
+    )
+    p_find_paths_details.add_argument(
+        "--max-tier",
+        type=int,
+        default=3,
+        help="Maximum entity tier distance to consider for each path",
+    )
+    p_find_paths_details.set_defaults(
+        func=_cmd_find_directed_paths_with_relationship_details
+    )
 
     return parser
 
