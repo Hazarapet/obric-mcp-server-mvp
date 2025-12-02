@@ -11,8 +11,10 @@ belong in the `tools` package.
 
 from .client import Neo4jClient
 from .core import CoreDB
+from .path import PathDB
 
 __all__ = [
     "Neo4jClient",
     "CoreDB",
+    "PathDB",
 ]

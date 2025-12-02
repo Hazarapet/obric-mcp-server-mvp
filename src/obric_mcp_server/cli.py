@@ -21,7 +21,7 @@ from typing import Any, Dict
 from neo4j.graph import Node
 
 from .config import Config
-from .neo4j import CoreDB, Neo4jClient
+from .neo4j import CoreDB, Neo4jClient, PathDB
 
 
 def _to_serializable(obj: Any) -> Any:
@@ -69,9 +69,9 @@ def _cmd_find_related(args: argparse.Namespace, direction: str) -> None:
     client = Neo4jClient(config=config)
 
     with client:
-        core = CoreDB(client)
+        path_db = PathDB(client)
         if direction == "inbound":
-            records = core.find_inray_tier(
+            records = path_db.find_inray_tier(
                 id=args.id,
                 ticker=args.ticker,
                 short_name=args.short_name,
@@ -80,7 +80,7 @@ def _cmd_find_related(args: argparse.Namespace, direction: str) -> None:
                 limit=args.limit,
             )
         else:
-            records = core.find_outray_tier(
+            records = path_db.find_outray_tier(
                 id=args.id,
                 ticker=args.ticker,
                 short_name=args.short_name,
@@ -129,6 +129,69 @@ def _cmd_find_relationship_details(args: argparse.Namespace) -> None:
     print(json.dumps(serializable, indent=2, sort_keys=True))
 
 
+def _cmd_has_directed_path(args: argparse.Namespace) -> None:
+    """Check if there is a directed path between two entities."""
+
+    config = Config()
+    client = Neo4jClient(config=config)
+
+    with client:
+        path_db = PathDB(client)
+        has_path = path_db.has_directed_path(
+            id1=args.id1,
+            ticker1=args.ticker1,
+            short_name1=args.short_name1,
+            legal_name1=args.legal_name1,
+            id2=args.id2,
+            ticker2=args.ticker2,
+            short_name2=args.short_name2,
+            legal_name2=args.legal_name2,
+            direction=args.direction,
+            max_tier=args.max_tier,
+        )
+
+    result: Dict[str, Any] = {
+        "has_path": has_path,
+        "direction": args.direction,
+        "tier": args.max_tier,
+    }
+    print(json.dumps(result, indent=2, sort_keys=True))
+
+
+def _cmd_find_directed_paths(args: argparse.Namespace) -> None:
+    """Find all directed paths between two entities (as sequences of entities)."""
+
+    config = Config()
+    client = Neo4jClient(config=config)
+
+    with client:
+        path_db = PathDB(client)
+        paths = path_db.find_directed_paths(
+            id1=args.id1,
+            ticker1=args.ticker1,
+            short_name1=args.short_name1,
+            legal_name1=args.legal_name1,
+            id2=args.id2,
+            ticker2=args.ticker2,
+            short_name2=args.short_name2,
+            legal_name2=args.legal_name2,
+            direction=args.direction,
+            max_tier=args.max_tier,
+        )
+
+    # Serialize each path as a list of simple entity dicts
+    serializable_paths = [
+        [_to_serializable(entity) for entity in path] for path in paths
+    ]
+
+    result: Dict[str, Any] = {
+        "count": len(serializable_paths),
+        "direction": args.direction,
+        "tier": args.max_tier,
+        "paths": serializable_paths,
+    }
+    print(json.dumps(result, indent=2, sort_keys=True))
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="CLI for testing Obric MCP Neo4j functions",
@@ -165,7 +228,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_inbound.add_argument(
         "--tier",
         type=int,
-        default=3,
+        default=1,
         help="Maximum hop distance to traverse inbound",
     )
     p_inbound.add_argument(
@@ -188,7 +251,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_outbound.add_argument(
         "--tier",
         type=int,
-        default=3,
+        default=1,
         help="Maximum hop distance to traverse outbound",
     )
     p_outbound.add_argument(
@@ -217,10 +280,86 @@ def build_parser() -> argparse.ArgumentParser:
     p_rel_details.add_argument(
         "--limit",
         type=int,
-        default=25,
+        default=250,
         help="Maximum number of RelationshipDetail records to return",
     )
     p_rel_details.set_defaults(func=_cmd_find_relationship_details)
+
+    # has-directed-path command
+    p_has_path = subparsers.add_parser(
+        "has-directed-path",
+        help="Check if there is a directed path between two entities",
+    )
+    # Entity 1 arguments
+    p_has_path.add_argument("--id1", type=str, help="Neo4j internal node id for first entity", dest="id1")
+    p_has_path.add_argument("--ticker1", type=str, help="Ticker symbol for first entity")
+    p_has_path.add_argument("--short-name1", type=str, help="Short name text for first entity")
+    p_has_path.add_argument("--legal-name1", type=str, help="Legal name text for first entity")
+    # Entity 2 arguments
+    p_has_path.add_argument("--id2", type=str, help="Neo4j internal node id for second entity", dest="id2")
+    p_has_path.add_argument("--ticker2", type=str, help="Ticker symbol for second entity")
+    p_has_path.add_argument("--short-name2", type=str, help="Short name text for second entity")
+    p_has_path.add_argument("--legal-name2", type=str, help="Legal name text for second entity")
+    p_has_path.add_argument(
+        "--direction",
+        type=str,
+        choices=["inbound", "outbound"],
+        default="outbound",
+        help='Direction of flow: "outbound" (entity1 -> entity2) or "inbound" (entity1 <- entity2)',
+    )
+    p_has_path.add_argument(
+        "--max-tier",
+        type=int,
+        default=3,
+        help="Maximum entity tier distance to consider for the path",
+    )
+    p_has_path.set_defaults(func=_cmd_has_directed_path)
+
+    # find-paths command
+    p_find_paths = subparsers.add_parser(
+        "find-directed-paths",
+        help="Find all directed paths between two entities (as sequences of entities)",
+    )
+    # Entity 1 arguments
+    p_find_paths.add_argument(
+        "--id1", type=str, help="Neo4j internal node id for first entity", dest="id1"
+    )
+    p_find_paths.add_argument(
+        "--ticker1", type=str, help="Ticker symbol for first entity"
+    )
+    p_find_paths.add_argument(
+        "--short-name1", type=str, help="Short name text for first entity"
+    )
+    p_find_paths.add_argument(
+        "--legal-name1", type=str, help="Legal name text for first entity"
+    )
+    # Entity 2 arguments
+    p_find_paths.add_argument(
+        "--id2", type=str, help="Neo4j internal node id for second entity", dest="id2"
+    )
+    p_find_paths.add_argument(
+        "--ticker2", type=str, help="Ticker symbol for second entity"
+    )
+    p_find_paths.add_argument(
+        "--short-name2", type=str, help="Short name text for second entity"
+    )
+    p_find_paths.add_argument(
+        "--legal-name2", type=str, help="Legal name text for second entity"
+    )
+    p_find_paths.add_argument(
+        "--direction",
+        type=str,
+        choices=["inbound", "outbound"],
+        default="outbound",
+        help='Direction of flow: "outbound" (entity1 -> entity2) or "inbound" (entity1 <- entity2)',
+    )
+    p_find_paths.add_argument(
+        "--max-tier",
+        type=int,
+        default=3,
+        help="Maximum entity tier distance to consider for each path",
+    )
+    p_find_paths.set_defaults(func=_cmd_find_directed_paths)
 
     return parser
 

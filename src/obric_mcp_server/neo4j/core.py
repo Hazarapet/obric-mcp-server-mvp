@@ -43,27 +43,12 @@ class CoreDB:
         short_name: Optional[str] = None,
         legal_name: Optional[str] = None,
     ) -> tuple[str, Dict[str, Any]]:
-        """Build MATCH/WHERE clause for entity identification.
+        """Build MATCH/WHERE clause for entity identification (CoreDB version).
 
         Priority:
         1. Internal Neo4j node id
         2. Ticker
-        3. Short name / legal name (fuzzy "LIKE" search using CONTAINS)
-
-        Args:
-            entity_var: Variable name for the entity node in Cypher (e.g., "n", "start", "e1").
-            id: Internal Neo4j node id. Highest priority if provided.
-            ticker: Ticker symbol. Used if id is not provided.
-            short_name: Short name text (possibly noisy).
-            legal_name: Legal name text (possibly noisy).
-
-        Returns:
-            Tuple of (match_clause, params_dict) where:
-            - match_clause: Cypher MATCH/WHERE clause (without RETURN/LIMIT)
-            - params_dict: Dictionary of parameters for the query
-
-        Raises:
-            ValueError: If no valid identification parameters are provided.
+        3. Short name / legal name (fuzzy CONTAINS search)
         """
         # Normalize inputs
         ticker = self._norm(ticker)
@@ -79,7 +64,10 @@ class CoreDB:
 
         # 2) Second priority: ticker
         elif ticker is not None:
-            match_clause = f"MATCH ({entity_var}:Entity) WHERE toLower({entity_var}.ticker) CONTAINS toLower($ticker)"
+            match_clause = (
+                f"MATCH ({entity_var}:Entity) "
+                f"WHERE toLower({entity_var}.ticker) CONTAINS toLower($ticker)"
+            )
             params["ticker"] = ticker
 
         # 3) Fallback: short_name / legal_name fuzzy search
@@ -110,7 +98,6 @@ class CoreDB:
                     """
                 )
 
-            # Combine all provided name-based conditions with OR
             where_combined = " OR ".join(f"({wc.strip()})" for wc in where_clauses)
 
             match_clause = f"""
@@ -177,128 +164,38 @@ class CoreDB:
             records = result.data()
             return records
 
-    def find_inray_tier(
+    def find_entities_by_entity_type(
         self,
         *,
-        id: Optional[str] = None,
-        ticker: Optional[str] = None,
-        short_name: Optional[str] = None,
-        legal_name: Optional[str] = None,
-        tier: int = 3,
+        entity_type: str,
         limit: int = 250,
     ) -> List[Dict[str, Any]]:
-        """Find tier-N inbound related entities starting from a resolved entity.
-
-        The starting entity is resolved using the same priority as ``find_entity``:
-        1. Internal node id
-        2. Ticker
-        3. short_name / legal_name fuzzy search
+        """Find entities by their ``entity_type`` property.
 
         Args:
-            id: Internal Neo4j node id. Highest priority if provided.
-            ticker: Ticker symbol. Used if id is not provided.
-            short_name: Short name text (possibly noisy).
-            legal_name: Legal name text (possibly noisy).
-            tier: Maximum hop distance (1..N) to traverse inbound.
-            limit: Maximum number of related entities to return.
+            entity_type: Value of the ``entity_type`` property to match.
+            limit: Maximum number of records to return.
 
         Returns:
-            List of records, each with:
-                {"node": <Neo4j node>, "tier": <hop distance from start>}
+            List of records as dictionaries, each containing:
+                {"node": <Neo4j node>}
         """
+        etype = self._norm(entity_type)
+        if not etype:
+            raise ValueError("entity_type must be a non-empty string")
 
-        if tier < 1:
-            raise ValueError("tier must be >= 1")
-
-        start_match, params = self._build_entity_match(
-            entity_var="start",
-            id=id,
-            ticker=ticker,
-            short_name=short_name,
-            legal_name=legal_name,
-        )
-        params["limit"] = limit
-
-        # Inbound traversal:
-        # First hop: Entity <- RelationshipDetail
-        # Remaining hops (up to tier entities): arbitrary, but tier is
-        # derived from relationship count assuming Entity-RelationshipDetail-Entity pattern.
-        rel_pattern = "(start)"
-        for i in range(tier):
-            if i == tier - 1:
-                rel_pattern += "<-[]-(:RelationshipDetail)<-[]-(n:Entity)"
-            else:
-                rel_pattern += "<-[]-(:RelationshipDetail)<-[]-(:Entity)"
-
-        cypher = f"""
-        {start_match}
-        WITH DISTINCT start
-        MATCH path = {rel_pattern}
-        WHERE ALL(n IN nodes(path) WHERE SINGLE(x IN nodes(path) WHERE x = n))
-        WITH n, min(floor(length(path) / 2)) AS tier
-        RETURN n AS node, tier
+        cypher = """
+        MATCH (n:Entity)
+        WHERE toLower(n.entity_type) = toLower($entity_type)
+        RETURN n AS node
         LIMIT $limit
         """
+        params: Dict[str, Any] = {"entity_type": etype, "limit": limit}
 
         with self.client.session() as session:
             result: Result = session.run(cypher, params)
             records = result.data()
             return records
-
-    def find_outray_tier(
-        self,
-        *,
-        id: Optional[str] = None,
-        ticker: Optional[str] = None,
-        short_name: Optional[str] = None,
-        legal_name: Optional[str] = None,
-        tier: int = 3,
-        limit: int = 25,
-    ) -> List[Dict[str, Any]]:
-        """Find tier-N outbound related entities starting from a resolved entity.
-
-        Direction is the opposite of ``find_inray_tier``:
-        relationships go outwards from the starting node up to ``tier`` hops.
-        Resolution priority for the starting node matches ``find_entity``.
-        """
-
-        if tier < 1:
-            raise ValueError("tier must be >= 1")
-
-        start_match, params = self._build_entity_match(
-            entity_var="start",
-            id=id,
-            ticker=ticker,
-            short_name=short_name,
-            legal_name=legal_name,
-        )
-        params["limit"] = limit
-
-        # Outbound traversal:
-        # First hop: Entity - RelationshipDetail
-        # Remaining hops (up to tier entities): arbitrary, but tier is
-        # derived from relationship count assuming Entity-RelationshipDetail-Entity pattern.
-        rel_pattern = "(start)"
-        for i in range(tier):
-            if i == tier - 1:
-                rel_pattern += "-[]->(:RelationshipDetail)-[]->(n:Entity)"
-            else:
-                rel_pattern += "-[]->(:RelationshipDetail)-[]->(:Entity)"
-
-        cypher = f"""
-        {start_match}
-        WITH DISTINCT start
-        MATCH path = {rel_pattern}
-        WHERE ALL(n IN nodes(path) WHERE SINGLE(x IN nodes(path) WHERE x = n))
-        WITH n, min(floor(length(path) / 2)) AS tier
-        RETURN n AS node, tier
-        LIMIT $limit
-        """
-
-        with self.client.session() as session:
-            result: Result = session.run(cypher, params)
-            records = result.data()
-        return records
 
     def find_relationship_details(
         self,
