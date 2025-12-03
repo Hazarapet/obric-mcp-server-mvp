@@ -18,7 +18,7 @@ def find_entity(
     legal_name: Optional[str] = None,
     limit: int = 250,
 ) -> Dict[str, Any]:
-    """Find entities (such as organizations or companies) using a prioritized lookup strategy.
+    """Find entities using a prioritized lookup strategy.
 
     Use this tool when:
         - You need to get the company metadata for a given ticker or company name (including the id).
@@ -89,16 +89,11 @@ def find_relationship_details(
     legal_name2: Optional[str] = None,
     limit: int = 250,
 ) -> Dict[str, Any]:
-    """This provides information about organizations and relationships between them.
-    Each organization is an Entity and 2 Entities are related by multiple Relationship Details,
+    """Every 2 Entities have multiple Relationship Details between them,
     cause they may have different business relationships with each other. 
     Each relationship has a direction (EntityA -> RelationshipDetail -> EntityB) or (EntityA <- RelationshipDetail <- EntityB).
     
     Find all Relationship Details between two entities which have direct relationships.
-
-    Use this tool when you need to understand *how* two entities are
-    related (e.g., ownership, supply-chain, partnership), not just that
-    they are related.
 
     Both entities are resolved using the same priority as ``find_entity``:
     1. Internal entity id (exact match)
