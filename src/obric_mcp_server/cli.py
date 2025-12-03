@@ -18,21 +18,8 @@ import argparse
 import json
 from typing import Any, Dict
 
-from neo4j.graph import Node
-
 from .config import Config
 from .neo4j import CoreDB, Neo4jClient, PathDB
-
-
-def _to_serializable(obj: Any) -> Any:
-    """Convert Neo4j Node objects into simple dicts for JSON output."""
-    if isinstance(obj, Node):
-        return {
-            "id": obj.id,
-            "labels": list(obj.labels),
-            "properties": dict(obj),
-        }
-    return obj
 
 
 def _cmd_find_entity(args: argparse.Namespace) -> None:
@@ -54,9 +41,7 @@ def _cmd_find_entity(args: argparse.Namespace) -> None:
 
     serializable: Dict[str, Any] = {
         "count": len(records),
-        "results": [
-            {k: _to_serializable(v) for k, v in record.items()} for record in records
-        ],
+        "results": records,
     }
 
     print(json.dumps(serializable, indent=2, sort_keys=True))
@@ -91,9 +76,7 @@ def _cmd_find_related(args: argparse.Namespace, direction: str) -> None:
 
     serializable: Dict[str, Any] = {
         "count": len(records),
-        "results": [
-            {k: _to_serializable(v) for k, v in record.items()} for record in records
-        ]
+        "results": records,
     }
 
     print(json.dumps(serializable, indent=2, sort_keys=True))
@@ -121,9 +104,7 @@ def _cmd_find_relationship_details(args: argparse.Namespace) -> None:
 
     serializable: Dict[str, Any] = {
         "count": len(records),
-        "results": [
-            {k: _to_serializable(v) for k, v in record.items()} for record in records
-        ],
+        "results": records,
     }
 
     print(json.dumps(serializable, indent=2, sort_keys=True))
@@ -179,16 +160,11 @@ def _cmd_find_directed_paths(args: argparse.Namespace) -> None:
             max_tier=args.max_tier,
         )
 
-    # Serialize each path as a list of simple entity dicts
-    serializable_paths = [
-        [_to_serializable(entity) for entity in path] for path in paths
-    ]
-
     result: Dict[str, Any] = {
-        "count": len(serializable_paths),
+        "count": len(paths),
         "direction": args.direction,
         "tier": args.max_tier,
-        "paths": serializable_paths,
+        "paths": paths,
     }
     print(json.dumps(result, indent=2, sort_keys=True))
 
@@ -216,27 +192,11 @@ def _cmd_find_directed_paths_with_relationship_details(
             max_tier=args.max_tier,
         )
 
-    # Serialize each path as list of segments {from, relationship_detail, to}
-    serializable_paths = []
-    for path in paths:
-        serializable_segments = []
-        for seg in path:
-            serializable_segments.append(
-                {
-                    "from": _to_serializable(seg["from"]),
-                    "relationship_detail": _to_serializable(
-                        seg["relationship_detail"]
-                    ),
-                    "to": _to_serializable(seg["to"]),
-                }
-            )
-        serializable_paths.append(serializable_segments)
-
     result: Dict[str, Any] = {
-        "count": len(serializable_paths),
+        "count": len(paths),
         "direction": args.direction,
         "tier": args.max_tier,
-        "paths": serializable_paths,
+        "paths": paths,
     }
     print(json.dumps(result, indent=2, sort_keys=True))
 

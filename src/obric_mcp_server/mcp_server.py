@@ -1,22 +1,31 @@
 """
-MCP Server implementation for Obric - Neo4j Graph Database Tools
+MCP Server implementation for Obric - Neo4j Graph Database Tools.
+
+This module is the entrypoint used when running the MCP server process.
+It imports the shared `mcp` instance and all MCP tools so they are
+registered on the same FastMCP server.
 """
 
-import asyncio
-from typing import Any
+from __future__ import annotations
 
-# TODO: Import MCP SDK and implement server
-# from mcp import Server
-# from mcp.types import Tool
+import logging
+
+from .mcp_instance import mcp  # shared FastMCP instance
+
+# Import tools so their @tool decorators run and register them on `mcp`.
+from .tools import entity as entity_tools  # noqa: F401
 
 
-async def main():
-    """Main entry point for the MCP server"""
-    # TODO: Initialize MCP server
-    # TODO: Register Neo4j tools
-    # TODO: Start server
-    pass
+logger = logging.getLogger(__name__)
+
+
+def main() -> None:
+    """Main entry point for the MCP server."""
+    logging.basicConfig(level=logging.INFO)
+    logger.info("Starting Obric MCP server 'obric-mcp-server-mvp'...")
+    # Run the shared FastMCP instance; this will block the current process.
+    mcp.run(transport='stdio')
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

@@ -162,7 +162,7 @@ class CoreDB:
         with self.client.session() as session:
             result: Result = session.run(cypher, params)
             records = result.data()
-            return records
+            return [record["node"] for record in records]
 
     def find_entities_by_entity_type(
         self,
@@ -195,7 +195,7 @@ class CoreDB:
         with self.client.session() as session:
             result: Result = session.run(cypher, params)
             records = result.data()
-            return records
+            return [record["node"] for record in records]
 
     def find_relationship_details(
         self,
