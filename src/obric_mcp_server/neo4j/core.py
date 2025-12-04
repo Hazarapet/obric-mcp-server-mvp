@@ -19,7 +19,7 @@ from neo4j import Result
 
 from .client import Neo4jClient
 
-
+# TODO: we may need to get all Tier 1 enitites and relationship details for better exposure.
 class CoreDB:
     """Low-level Neo4j core query helpers backed by a Neo4jClient."""
 
@@ -133,7 +133,7 @@ class CoreDB:
 
         Returns:
             List of records as dictionaries, each containing:
-                {"node": <Neo4j node>}
+                {<Neo4j node>}
         """
 
         match_clause, params = self._build_entity_match(
@@ -178,7 +178,7 @@ class CoreDB:
 
         Returns:
             List of records as dictionaries, each containing:
-                {"node": <Neo4j node>}
+                {<Neo4j node>}
         """
         etype = self._norm(entity_type)
         if not etype:

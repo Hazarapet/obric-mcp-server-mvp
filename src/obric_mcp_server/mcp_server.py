@@ -24,7 +24,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
     logger.info("Starting Obric MCP server 'obric-mcp-server-mvp'...")
     # Run the shared FastMCP instance; this will block the current process.
-    mcp.run(transport='stdio')
+    mcp.run(transport="streamable-http")
 
 
 if __name__ == "__main__":

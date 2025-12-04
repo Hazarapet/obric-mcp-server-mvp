@@ -13,25 +13,21 @@ from .neo4j import CoreDB, Neo4jClient, PathDB
 # Single shared MCP server instance
 mcp = FastMCP(
     "obric-mcp-server-mvp",
-    version="0.0.1",
-    description="""
-    An MCP server to deal with complex relationship data between different type of entities.
-    Entities can be companies, commettes, regulators, NGOs etc. Each 2 Entities may have multiple relationships between them.
-    Each Relationship contains details about the specific connections between the 2 Entities.
-    Those connections can be ownership, supply-chain, partnership, regulation, investment, services, etc.
+    # description='''An MCP server to deal with complex relationship data between different type of entities.
+    # Entities can be companies, commettes, regulators, NGOs etc. Each 2 Entities may have multiple relationships between them.
+    # Each Relationship contains details about the specific connections between the 2 Entities.
+    # Those connections can be ownership, supply-chain, partnership, regulation, investment, services, etc.
 
-    Entities contain metadata about the entity like name, ticker, short name, legal name, entity type, etc.
-    Relationship Details contain metadata about the relationship like description, relationship type, source url, created at, etc.
+    # Entities contain metadata about the entity like name, ticker, short name, legal name, entity type, etc.
+    # Relationship Details contain metadata about the relationship like description, relationship type, source url, created at, etc.
 
-    The direction of relationship matters. Entity1 -> Entity2 is different from Entity2 -> Entity1.
-    This info is often provided in the tools results.
+    # The direction of relationship matters. Entity1 -> Entity2 is different from Entity2 -> Entity1.
+    # This info is often provided in the tools results.
 
-    The path between 2 Entities is an ordered sequence of Entities (and may include Relationship Details).
-    Each level of depth in the path is called a "tier".
-    Tier-N entities are the entities that are N steps away from the starting entity 
-    in the given direction: either inbound or outbound.
-    """
-    author="Obric-MVP"
+    # The path between 2 Entities is an ordered sequence of Entities (and may include Relationship Details).
+    # Each level of depth in the path is called a tier.
+    # Tier-N entities are the entities that are N steps away from the starting entity 
+    # in the given direction: either inbound or outbound.''',
     )
 
 # Shared Neo4j wiring for all tools
