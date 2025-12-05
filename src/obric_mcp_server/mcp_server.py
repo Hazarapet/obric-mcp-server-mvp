@@ -1,5 +1,5 @@
 """
-MCP Server implementation for Obric - Neo4j Graph Database Tools.
+MCP Server implementation for Obric
 
 This module is the entrypoint used when running the MCP server process.
 It imports the shared `mcp` instance and all MCP tools so they are
@@ -14,6 +14,7 @@ from .mcp_instance import mcp  # shared FastMCP instance
 
 # Import tools so their @tool decorators run and register them on `mcp`.
 from .tools import entity as entity_tools  # noqa: F401
+from .tools import path as path_tools  # noqa: F401
 
 
 logger = logging.getLogger(__name__)

@@ -11,7 +11,6 @@ from neo4j import Result
 
 from .client import Neo4jClient
 
-# TODO: find paths passing through specific entities (nodes)
 class PathDB:
     def __init__(self, client: Optional[Neo4jClient] = None) -> None:
         self.client = client

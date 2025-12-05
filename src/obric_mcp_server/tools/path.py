@@ -373,7 +373,6 @@ def find_directed_paths_with_relationship_details(
       - "inbound":  Entity1 <- ... <- Entity2
 
     The entire path must follow a single direction (like a flow); no cross-direction is allowed.
-    Paths alternate between Entity and RelationshipDetail nodes along the graph.
 
     Use this tool when:
       - You want to see all possible connection paths between two entities, including the detailed

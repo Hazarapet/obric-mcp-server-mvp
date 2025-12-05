@@ -13,6 +13,9 @@ from .neo4j import CoreDB, Neo4jClient, PathDB
 # Single shared MCP server instance
 mcp = FastMCP(
     "obric-mcp-server-mvp",
+    host='0.0.0.0',
+    streamable_http_path="/",
+    port=8000
     # description='''An MCP server to deal with complex relationship data between different type of entities.
     # Entities can be companies, commettes, regulators, NGOs etc. Each 2 Entities may have multiple relationships between them.
     # Each Relationship contains details about the specific connections between the 2 Entities.
