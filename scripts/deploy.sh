@@ -30,8 +30,6 @@ rsync -avz \
     --exclude="*.pyo" \
     "$SRC_DIR/" "$REMOTE_USER@$REMOTE_IP:$REMOTE_PATH/src/"
 
-echo ""
-
 # Copy requirements.txt as well
 if [ -f "$REQ_FILE" ]; then
     echo "Copying requirements.txt to $REMOTE_USER@$REMOTE_IP:$REMOTE_PATH/"
@@ -40,5 +38,5 @@ else
     echo "Warning: requirements.txt not found at $REQ_FILE"
 fi
 
-echo "\nDeployment complete!"
+echo "Deployment complete!"
 

@@ -10,11 +10,13 @@ belong in the `tools` package.
 """
 
 from .client import Neo4jClient
-from .core import CoreDB
+from .entity import EntityDB
+from .neighbourhood import NeighbourhoodDB
 from .path import PathDB
 
 __all__ = [
     "Neo4jClient",
-    "CoreDB",
+    "EntityDB",
+    "NeighbourhoodDB",
     "PathDB",
 ]

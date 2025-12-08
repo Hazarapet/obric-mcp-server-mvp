@@ -1,13 +1,13 @@
 """MCP tools for entity-level Neo4j operations.
 
-This module exposes `CoreDB` entity methods as MCP tools.
+This module exposes `EntityDB` entity methods as MCP tools.
 """
 
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from ..mcp_instance import coredb, tool
+from ..mcp_instance import entitydb, tool
 
 
 @tool()
@@ -15,17 +15,17 @@ def find_entity(
     id: Optional[str] = None,
     ticker: Optional[str] = None,
     short_name: Optional[str] = None,
-    legal_name: Optional[str] = None,
-    limit: int = 250,
+    legal_name: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Find entities using a prioritized lookup strategy.
+    """Find an entity using a prioritized lookup strategy.
 
     Use this tool when:
-        - You need to get the company metadata for a given ticker or company name (including the id).
+        - You need to get the entity metadata for a given ticker or entity name (including the id).
+        - You need to find an entity by its id, ticker, short name or legal name.
 
     Priority:
     1. Internal entity id (exact match)
-    3. Ticker (case-insensitive exact match)
+    2. Ticker (case-insensitive exact match)
     3. Short name / legal name (fuzzy CONTAINS search)
 
     Args:
@@ -33,14 +33,13 @@ def find_entity(
         ticker: Ticker symbol. Used if id is not provided.
         short_name: Short name text (possibly noisy).
         legal_name: Legal name text (possibly noisy).
-        limit: Maximum number of records to return (for non-id lookups).
 
     Returns:
-        A JSON-serializable dict with the raw records returned by CoreDB:
+        A JSON-serializable dict:
 
             {
               "count": <int>,
-              "results": [ { "node": dict(), ... }, ... ]
+              "results": [ { dict(), ... }, ... ]
             }
 
     Example:
@@ -49,13 +48,11 @@ def find_entity(
             "count": 1,
             "results": [
                 {
-                    "node": {
-                        "id": "1234567890",
-                        "ticker": "NVDA",
-                        "short_name": "NVIDIA",
-                        "entity_type": "company",
-                        "legal_name": "NVIDIA Corporation",
-                    }
+                    "id": "1234567890",
+                    "ticker": "NVDA",
+                    "short_name": "NVIDIA",
+                    "entity_type": "company",
+                    "legal_name": "NVIDIA Corporation",
                 }
             ]
         }
@@ -63,12 +60,11 @@ def find_entity(
         because we use "like" operation to find similar entities (with case-insensitive matching) 
         which short name or legal name contain "nvidia".
     """
-    records = coredb.find_entity(
+    records = entitydb.find_entity(
         id=id,
         ticker=ticker,
         short_name=short_name,
-        legal_name=legal_name,
-        limit=limit,
+        legal_name=legal_name
     )
 
     return {
@@ -78,78 +74,54 @@ def find_entity(
 
 
 @tool()
-def find_relationship_details(
-    id1: Optional[str] = None,
-    ticker1: Optional[str] = None,
-    short_name1: Optional[str] = None,
-    legal_name1: Optional[str] = None,
-    id2: Optional[str] = None,
-    ticker2: Optional[str] = None,
-    short_name2: Optional[str] = None,
-    legal_name2: Optional[str] = None,
+def query_entities(
+    query: str,
     limit: int = 250,
 ) -> Dict[str, Any]:
-    """Every 2 Entities have multiple Relationship Details between them,
-    cause they may have different business relationships with each other. 
-    Each relationship has a direction (EntityA -> RelationshipDetail -> EntityB) or (EntityA <- RelationshipDetail <- EntityB).
-    
-    Find all Relationship Details between two entities which have direct relationships.
+    """Query entities by searching across multiple fields.
 
-    Both entities are resolved using the same priority as ``find_entity``:
-    1. Internal entity id (exact match)
-    2. Ticker (case-insensitive exact match)
-    3. Short name / legal name (fuzzy CONTAINS search)
+    This tool searches for entities where any field contains the query string.
+    It searches across:
+    - ticker
+    - entity_type
+    - short_name
+    - legal_name
+
+    Use this tool when:
+        - You want to find entities by searching across all their metadata fields.
+        - You have a partial search term and want to find matching entities.
 
     Args:
-        id1, ticker1, short_name1, legal_name1: Identification for the
-            first entity.
-        id2, ticker2, short_name2, legal_name2: Identification for the
-            second entity.
-        limit: Maximum number of RelationshipDetail records to return.
+        query: Search string to match against entity fields (case-insensitive).
+        limit: Maximum number of records to return.
 
     Returns:
         A JSON-serializable dict:
 
             {
               "count": <int>,
-              "results": [
-                {
-                  "id": ...,
-                  "description": ...,
-                  "relationship_type": ...,
-                  "source_url": ...,
-                  "created_at": ...,
-                  "relationship_direction": "EntityA -> EntityB"
-                },
-                ...
-              ]
+              "results": [ { dict(), ... }, ... ]
             }
 
     Example:
-        find_relationship_details(ticker1="OKLO", short_name2="goldman sachs")
+        query_entities(query="energy", limit=10)
         {
-            "count": 3,
+            "count": 5,
             "results": [
                 {
-                    created_at": "2025-09-27T09:21:35.340055",
-                    "description": "Oklo entered into an Equity Distribution Agreement dated June 2, 2025 with Goldman Sachs & Co. LLC pursuant to which Goldman Sachs is acting as a sales agent to offer and sell Oklo's Class A common stock.",
-                    "id": "7d407d1d-7467-4848-a693-8adf6fcf4b35",
-                    "relationship_direction": "oklo inc. -> goldman sachs & co. llc",
-                    "relationship_type": "sales_agent",
-                    "source_url": "[url to the SEC filing]"
+                    "id": "1234567890",
+                    "ticker": "LEU",
+                    "short_name": "Centrus",
+                    "entity_type": "company",
+                    "legal_name": "Centrus Energy Corporation",
                 }, ...
             ]
         }
+
+        This will find entities where "energy" appears in any of the searchable fields.
     """
-    records = coredb.find_relationship_details(
-        id1=id1,
-        ticker1=ticker1,
-        short_name1=short_name1,
-        legal_name1=legal_name1,
-        id2=id2,
-        ticker2=ticker2,
-        short_name2=short_name2,
-        legal_name2=legal_name2,
+    records = entitydb.query_entity(
+        query=query,
         limit=limit,
     )
 

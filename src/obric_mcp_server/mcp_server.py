@@ -14,6 +14,8 @@ from .mcp_instance import mcp  # shared FastMCP instance
 
 # Import tools so their @tool decorators run and register them on `mcp`.
 from .tools import entity as entity_tools  # noqa: F401
+from .tools import neighbourhood as neighbourhood_tools  # noqa: F401
+from .tools import path as path_tools  # noqa: F401
 from .tools import path as path_tools  # noqa: F401
 
 

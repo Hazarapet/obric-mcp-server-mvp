@@ -19,9 +19,9 @@ from neo4j import Result
 
 from .client import Neo4jClient
 
-# TODO: we may need to get all Tier 1 enitites and relationship details for better exposure.
-class CoreDB:
-    """Low-level Neo4j core query helpers backed by a Neo4jClient."""
+
+class EntityDB:
+    """Low-level Neo4j entity query helpers backed by a Neo4jClient."""
 
     def __init__(self, client: Neo4jClient) -> None:
         self.client = client
@@ -43,7 +43,7 @@ class CoreDB:
         short_name: Optional[str] = None,
         legal_name: Optional[str] = None,
     ) -> tuple[str, Dict[str, Any]]:
-        """Build MATCH/WHERE clause for entity identification (CoreDB version).
+        """Build MATCH/WHERE clause for entity identification (EntityDB version).
 
         Priority:
         1. Internal Neo4j node id (exact match)
@@ -114,7 +114,7 @@ class CoreDB:
         ticker: Optional[str] = None,
         short_name: Optional[str] = None,
         legal_name: Optional[str] = None,
-        limit: int = 250,
+        limit: int = 1,
     ) -> List[Dict[str, Any]]:
         """Find entities using a prioritized, generic lookup strategy.
 
@@ -164,33 +164,42 @@ class CoreDB:
             records = result.data()
             return [record["node"] for record in records]
 
-    def find_entities_by_entity_type(
+    def query_entity(
         self,
         *,
-        entity_type: str,
+        query: str,
         limit: int = 250,
     ) -> List[Dict[str, Any]]:
-        """Find entities by their ``entity_type`` property.
+        """Find entities where any field contains the query string.
+
+        Searches across multiple entity fields:
+        - ticker
+        - entity_type
+        - short_name
+        - legal_name
 
         Args:
-            entity_type: Value of the ``entity_type`` property to match.
+            query: Search string to match against entity fields (case-insensitive).
             limit: Maximum number of records to return.
 
         Returns:
             List of records as dictionaries, each containing:
                 {<Neo4j node>}
         """
-        etype = self._norm(entity_type)
-        if not etype:
-            raise ValueError("entity_type must be a non-empty string")
+        query_str = self._norm(query)
+        if not query_str:
+            raise ValueError("query must be a non-empty string")
 
         cypher = """
         MATCH (n:Entity)
-        WHERE toLower(n.entity_type) = toLower($entity_type)
+        WHERE toLower(n.ticker) CONTAINS toLower($query)
+           OR toLower(n.entity_type) CONTAINS toLower($query)
+           OR toLower(n.short_name) CONTAINS toLower($query)
+           OR toLower(n.legal_name) CONTAINS toLower($query)
         RETURN n AS node
         LIMIT $limit
         """
-        params: Dict[str, Any] = {"entity_type": etype, "limit": limit}
+        params: Dict[str, Any] = {"query": query_str, "limit": limit}
 
         with self.client.session() as session:
             result: Result = session.run(cypher, params)
