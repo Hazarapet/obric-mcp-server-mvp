@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from ..mcp_instance import entitydb, tool
+from ..mcp_instance import embedding_client, entitydb, tool
 
 
 @tool()
@@ -27,6 +27,8 @@ def find_entity(
     1. Internal entity id (exact match)
     2. Ticker (case-insensitive exact match)
     3. Short name / legal name (fuzzy CONTAINS search)
+
+    Use short name or legal name if finding by ticker gives no results.
 
     Args:
         id: Internal entity id. Highest priority if provided.
@@ -122,6 +124,79 @@ def query_entities(
     """
     records = entitydb.query_entity(
         query=query,
+        limit=limit,
+    )
+
+    return {
+        "count": len(records),
+        "results": records,
+    }
+
+
+@tool()
+def find_entities_by_business_activity(
+    query: str,
+    direction: Optional[str] = None,
+    threshold: float = 0.6,
+    limit: int = 250
+) -> Dict[str, Any]:
+    """Find entities involved in business activities matching a semantic query.
+
+    This tool generates an embedding from the query text and finds
+    RelationshipDetails whose descriptions or types are semantically similar
+    (using cosine similarity). It then returns the entities connected to
+    those relationships.
+
+    Use this tool when:
+    - You want entities involved in a specific business activity.
+    - You need semantic search (not keyword match).
+    - You want to filter by relationship direction ("inbound", "outbound").
+
+    Args:
+        query: Text describing the business activity (e.g. "commission payments").
+        direction: "inbound", "outbound", or None for both.
+        threshold: Min similarity score (0-1). Default: 0.7.
+        limit: Max number of records to return.
+
+    Example query:
+    "commission_payment" or "Centrus pays UBS a 1.5% commission on gross sales under the agreement."
+
+    Returns:
+        A JSON-serializable dict:
+
+            {
+              "count": <int>,
+              "results": [
+                {
+                  <Entity node properties>
+                },
+                ...
+              ]
+            }
+
+    Example:
+        find_entities_by_business_activity(query="Centrus pays UBS a 1.5% commission on gross sales under the agreement.", direction="outbound", threshold=0.8)
+        {
+            "count": 40,
+            "results": [
+                {
+                "created_at": "2025-12-03T13:23:43.753100",
+                "entity_type": "company",
+                "id": "abf45d5a-4584-48aa-b9d6-8b3264839e38",
+                "legal_name": "evercore group l.l.c.",
+                "short_name": "evercore group l.l.c."
+                }, ...
+            ]
+        }
+    """
+    # Generate embedding from query text
+    embedding = embedding_client.embed_text(query)
+
+    # Find entities using embedding similarity
+    records = entitydb.find_entity_by_relationship_embedding(
+        embedding=embedding,
+        threshold=threshold,
+        direction=direction,
         limit=limit,
     )
 

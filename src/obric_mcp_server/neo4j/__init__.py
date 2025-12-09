@@ -13,10 +13,12 @@ from .client import Neo4jClient
 from .entity import EntityDB
 from .neighbourhood import NeighbourhoodDB
 from .path import PathDB
+from .relationship_details import RelationshipDetailsDB
 
 __all__ = [
     "Neo4jClient",
     "EntityDB",
     "NeighbourhoodDB",
     "PathDB",
+    "RelationshipDetailsDB",
 ]

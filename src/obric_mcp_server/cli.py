@@ -16,9 +16,10 @@ The CLI uses:
 
 import argparse
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from .config import Config
+from .llm import EmbeddingClient
 from .neo4j import EntityDB, NeighbourhoodDB, Neo4jClient, PathDB
 
 
@@ -36,6 +37,33 @@ def _cmd_find_entity(args: argparse.Namespace) -> None:
             ticker=args.ticker,
             short_name=args.short_name,
             legal_name=args.legal_name,
+            limit=args.limit,
+        )
+
+    serializable: Dict[str, Any] = {
+        "count": len(records),
+        "results": records,
+    }
+
+    print(json.dumps(serializable, indent=2, sort_keys=True))
+
+
+def _cmd_find_entity_by_relationship_embedding(args: argparse.Namespace) -> None:
+    """Find entities connected to RelationshipDetails matching an embedding similarity."""
+
+    config = Config()
+    client = Neo4jClient(config=config)
+    embedding_client = EmbeddingClient(config=config)
+
+    # Generate embedding from query text
+    embedding = embedding_client.embed_text(args.query)
+
+    with client:
+        entitydb = EntityDB(client)
+        records = entitydb.find_entity_by_relationship_embedding(
+            embedding=embedding,
+            threshold=args.threshold,
+            direction=args.direction,
             limit=args.limit,
         )
 
@@ -141,6 +169,37 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum number of records to return (non-id lookups)",
     )
     p_find.set_defaults(func=_cmd_find_entity)
+
+    # find-entity-by-relationship-embedding command
+    p_find_by_emb = subparsers.add_parser(
+        "find-entity-by-relationship-embedding",
+        help="Find entities connected to RelationshipDetails matching an embedding similarity",
+    )
+    p_find_by_emb.add_argument(
+        "--query",
+        type=str,
+        required=True,
+        help="Text query to generate embedding from and search for semantically similar relationships",
+    )
+    p_find_by_emb.add_argument(
+        "--threshold",
+        type=float,
+        default=0.8,
+        help="Minimum similarity score threshold (typically 0.0 to 1.0 for cosine similarity)",
+    )
+    p_find_by_emb.add_argument(
+        "--direction",
+        type=_parse_direction,
+        default=None,
+        help='Filter by relationship direction: "outbound", "inbound", or "none" for both',
+    )
+    p_find_by_emb.add_argument(
+        "--limit",
+        type=int,
+        default=250,
+        help="Maximum number of entity records to return",
+    )
+    p_find_by_emb.set_defaults(func=_cmd_find_entity_by_relationship_embedding)
 
     # find-paths-between-entities command
     p_find_paths = subparsers.add_parser(

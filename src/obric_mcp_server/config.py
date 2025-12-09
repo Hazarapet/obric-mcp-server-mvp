@@ -12,6 +12,8 @@ Example .env:
     LOG_LEVEL=INFO
 """
 
+from typing import Optional
+
 from pydantic import AnyUrl, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -61,6 +63,15 @@ class Config(BaseSettings):
         alias="LOG_LEVEL",
         description="Log level for server / CLI (e.g. DEBUG, INFO, WARN, ERROR)",
     )
+
+    # OpenAI configuration
+    openai_api_key: str = Field(
+        ...,
+        alias="OPENAI_API_KEY",
+        description="OpenAI API key for generating embeddings",
+    )
+    embedding_model_name: str = "text-embedding-3-small"
+    embedding_dimensions: Optional[int] = 512
 
     # Pydantic v2 settings for env loading
     model_config = SettingsConfigDict(

@@ -206,93 +206,165 @@ class EntityDB:
             records = result.data()
             return [record["node"] for record in records]
 
-    def find_relationship_details(
+    def find_entity_by_relationship_query(
         self,
         *,
-        id1: Optional[str] = None,
-        ticker1: Optional[str] = None,
-        short_name1: Optional[str] = None,
-        legal_name1: Optional[str] = None,
-        id2: Optional[str] = None,
-        ticker2: Optional[str] = None,
-        short_name2: Optional[str] = None,
-        legal_name2: Optional[str] = None,
+        query: str,
+        direction: Optional[str] = None,
         limit: int = 250,
     ) -> List[Dict[str, Any]]:
-        """Find all RelationshipDetail nodes between two entities.
+        """Find entities connected to RelationshipDetails matching a query.
 
-        Both entities are resolved using the same priority as ``find_entity``:
-        1. Internal node id
-        2. Ticker
-        3. short_name / legal_name fuzzy search
+        Searches RelationshipDetail nodes where relationship_type or description
+        contains the query string, then returns all entities connected to those
+        relationship details. Each RelationshipDetail has 2 Entities connected.
 
         Args:
-            id1: Internal Neo4j node id for first entity. Highest priority if provided.
-            ticker1: Ticker symbol for first entity.
-            short_name1: Short name text for first entity (possibly noisy).
-            legal_name1: Legal name text for first entity (possibly noisy).
-            id2: Internal Neo4j node id for second entity. Highest priority if provided.
-            ticker2: Ticker symbol for second entity.
-            short_name2: Short name text for second entity (possibly noisy).
-            legal_name2: Legal name text for second entity (possibly noisy).
-            limit: Maximum number of RelationshipDetail records to return.
+            query: Search string to match against relationship_type and description
+                fields (case-insensitive).
+            direction: Filter by relationship direction - "inbound", "outbound", or None for both.
+            limit: Maximum number of entity records to return.
 
         Returns:
-            List of records, each with:
-                {"relationship_detail": <RelationshipDetail node>, "direction": "outbound" or "inbound"}
-                where "outbound" means entity1 -> RelationshipDetail -> entity2,
-                and "inbound" means entity1 <- RelationshipDetail <- entity2
+            List of entity records as dictionaries, each containing:
+                {
+                    <Entity node properties>,
+                    "relationship_direction": "[EntityFrom] -> [EntityTo]"
+                }
+        """
+        query_str = self._norm(query)
+        if not query_str:
+            raise ValueError("query must be a non-empty string")
+        if direction is not None and direction not in {"inbound", "outbound"}:
+            raise ValueError('direction must be None, "inbound", or "outbound"')
+
+        params: Dict[str, Any] = {"query": query_str, "limit": limit, "direction": direction}
+
+        
+        # Query for RelationshipDetails matching the query, then get connected entities
+        # Match RelationshipDetails once, collect entities from both directions per RD, then unwind
+        cypher = """
+        MATCH (rd:RelationshipDetail)
+        WHERE (rd.description IS NOT NULL AND toLower(rd.description) CONTAINS toLower($query))
+        OR (rd.relationship_type IS NOT NULL AND toLower(rd.relationship_type) CONTAINS toLower($query))
+
+        // 2) Match both orientations around rd
+        OPTIONAL MATCH (src1:Entity)-[]->(rd)-[]->(dst1:Entity)
+        OPTIONAL MATCH (dst2:Entity)<-[]-(rd)<-[]-(src2:Entity)
         """
 
-        # Build entity1 match clause
-        e1_match, params1 = self._build_entity_match(
-            entity_var="e1",
-            id=id1,
-            ticker=ticker1,
-            short_name=short_name1,
-            legal_name=legal_name1,
-        )
+        if direction is None:
+            cypher += """
+            WITH [src1, dst1, src2, dst2] as entities
+            """
+        elif direction == "outbound":
+            cypher += """
+            WITH [src1, src2] as entities
+            """
 
-        # Build entity2 match clause
-        e2_match, params2 = self._build_entity_match(
-            entity_var="e2",
-            id=id2,
-            ticker=ticker2,
-            short_name=short_name2,
-            legal_name=legal_name2,
-        )
+        elif direction == "inbound":
+            cypher += """
+            WITH [dst1, dst2] as entities
+            """
 
-        # Merge params, prefixing with numbers to avoid conflicts
-        params: Dict[str, Any] = {}
-        for key, value in params1.items():
-            params[f"1_{key}"] = value
-            e1_match = e1_match.replace(f"${key}", f"$1_{key}")
-        for key, value in params2.items():
-            params[f"2_{key}"] = value
-            e2_match = e2_match.replace(f"${key}", f"$2_{key}")
-        params["limit"] = limit
-
-        # Query for RelationshipDetails in both directions
-        cypher = f"""
-        {e1_match}
-        WITH DISTINCT e1
-        {e2_match}
-        WITH DISTINCT e1, e2
-        OPTIONAL MATCH (e1)-[]->(rd_out:RelationshipDetail)-[]->(e2)
-        OPTIONAL MATCH (e1)<-[]-(rd_in:RelationshipDetail)<-[]-(e2)
-        WITH e1, e2, 
-             collect(DISTINCT {{rd: rd_out, dir: e1.short_name + " -> " + e2.short_name}}) AS outbound_rels,
-             collect(DISTINCT {{rd: rd_in, dir: e2.short_name + " -> " + e1.short_name}}) AS inbound_rels
-        UNWIND (outbound_rels + inbound_rels) AS rel
-        UNWIND rel.rd AS rd
-        RETURN rd.id as id, rd.description as description, rd.relationship_type as relationship_type, 
-        rd.source_url as source_url, rd.created_at as created_at, rel.dir as relationship_direction
-        ORDER BY rd.created_at DESC
-        LIMIT $limit
+        cypher += """
+        UNWIND entities AS entity
+        RETURN DISTINCT entity
+        LIMIT $limit;
         """
 
         with self.client.session() as session:
             result: Result = session.run(cypher, params)
             records = result.data()
-        return records
+            
+        # Merge entity properties with relationship_direction
+        return [
+            {**record["entity"]} for record in records
+        ]
+
+    def find_entity_by_relationship_embedding(
+        self,
+        *,
+        embedding: List[float],
+        threshold: float = 0.7,
+        direction: Optional[str] = None,
+        limit: int = 250,
+    ) -> List[Dict[str, Any]]:
+        """Find entities connected to RelationshipDetails matching an embedding similarity.
+
+        Searches RelationshipDetail nodes where the embedding similarity with the given
+        embedding is greater than the threshold, then returns all entities connected to
+        those relationship details. Each RelationshipDetail has 2 Entities connected.
+
+        Args:
+            embedding: Vector embedding (list of floats) to compare against RelationshipDetail embeddings.
+            threshold: Minimum similarity score threshold (typically 0.0 to 1.0 for cosine similarity).
+            direction: Filter by relationship direction - "inbound", "outbound", or None for both.
+            limit: Maximum number of entity records to return.
+
+        Returns:
+            List of entity records as dictionaries, each containing:
+                {
+                    <Entity node properties>
+                }
+
+        Raises:
+            ValueError: If embedding is empty or direction is invalid.
+        """
+        if not embedding:
+            raise ValueError("embedding must be a non-empty list")
+        if not isinstance(embedding, list) or not all(isinstance(x, (int, float)) for x in embedding):
+            raise ValueError("embedding must be a list of numbers")
+        if not isinstance(threshold, (int, float)):
+            raise ValueError("threshold must be a number")
+        if direction is not None and direction not in {"inbound", "outbound"}:
+            raise ValueError('direction must be None, "inbound", or "outbound"')
+
+        params: Dict[str, Any] = {
+            "embedding": embedding,
+            "threshold": threshold,
+            "limit": limit,
+            "direction": direction,
+        }
+
+        # Query for RelationshipDetails matching the embedding similarity, then get connected entities
+        # Match RelationshipDetails once, collect entities from both directions per RD, then unwind
+        cypher = """
+        MATCH (rd:RelationshipDetail)
+        WHERE rd.embedding IS NOT NULL
+        WITH rd, gds.similarity.cosine(rd.embedding, $embedding) AS similarity
+        WHERE similarity >= $threshold
+
+        // 2) Match both orientations around rd
+        OPTIONAL MATCH (src1:Entity)-[]->(rd)-[]->(dst1:Entity)
+        OPTIONAL MATCH (dst2:Entity)<-[]-(rd)<-[]-(src2:Entity)
+        """
+
+        if direction is None:
+            cypher += """
+            WITH [src1, dst1, src2, dst2] as entities
+            """
+        elif direction == "outbound":
+            cypher += """
+            WITH [src1, src2] as entities
+            """
+        elif direction == "inbound":
+            cypher += """
+            WITH [dst1, dst2] as entities
+            """
+
+        cypher += """
+        UNWIND entities AS entity
+        RETURN DISTINCT entity
+        LIMIT $limit;
+        """
+
+        with self.client.session() as session:
+            result: Result = session.run(cypher, params)
+            records = result.data()
+
+        # Merge entity properties
+        return [
+            {**record["entity"]} for record in records
+        ]
 
