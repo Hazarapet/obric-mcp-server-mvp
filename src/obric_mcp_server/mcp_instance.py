@@ -9,7 +9,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .config import Config
 from .llm import EmbeddingClient
-from .neo4j import EntityDB, NeighbourhoodDB, Neo4jClient, PathDB
+from .neo4j import EntityDB, NeighbourhoodDB, Neo4jClient, PathDB, RelationshipDetailsDB
 
 # Single shared MCP server instance
 mcp = FastMCP(
@@ -40,10 +40,11 @@ neo4j_client = Neo4jClient(config=config)
 entitydb = EntityDB(neo4j_client)
 neighbourhooddb = NeighbourhoodDB(neo4j_client)
 pathdb = PathDB(neo4j_client)
+relationship_detailsdb = RelationshipDetailsDB(neo4j_client)
 embedding_client = EmbeddingClient(config=config)
 
 # Convenience alias for defining tools bound to this server
 tool = mcp.tool
 
-__all__ = ["mcp", "tool", "config", "neo4j_client", "entitydb", "neighbourhooddb", "pathdb", "embedding_client"]
+__all__ = ["mcp", "tool", "config", "neo4j_client", "entitydb", "neighbourhooddb", "pathdb", "relationship_detailsdb", "embedding_client"]
 

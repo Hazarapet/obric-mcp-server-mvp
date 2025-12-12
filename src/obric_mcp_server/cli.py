@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 
 from .config import Config
 from .llm import EmbeddingClient
-from .neo4j import EntityDB, NeighbourhoodDB, Neo4jClient, PathDB
+from .neo4j import EntityDB, NeighbourhoodDB, Neo4jClient, PathDB, RelationshipDetailsDB
 
 
 def _cmd_find_entity(args: argparse.Namespace) -> None:
@@ -33,6 +33,54 @@ def _cmd_find_entity(args: argparse.Namespace) -> None:
     with client:
         entitydb = EntityDB(client)
         records = entitydb.find_entity(
+            id=args.id,
+            ticker=args.ticker,
+            short_name=args.short_name,
+            legal_name=args.legal_name,
+            limit=args.limit,
+        )
+
+    serializable: Dict[str, Any] = {
+        "count": len(records),
+        "results": records,
+    }
+
+    print(json.dumps(serializable, indent=2, sort_keys=True))
+
+
+def _cmd_find_government_awards(args: argparse.Namespace) -> None:
+    """Find government awards for an entity."""
+
+    config = Config()
+    client = Neo4jClient(config=config)
+
+    with client:
+        relationship_details_db = RelationshipDetailsDB(client)
+        records = relationship_details_db.find_government_awards(
+            id=args.id,
+            ticker=args.ticker,
+            short_name=args.short_name,
+            legal_name=args.legal_name,
+            limit=args.limit,
+        )
+
+    serializable: Dict[str, Any] = {
+        "count": len(records),
+        "results": records,
+    }
+
+    print(json.dumps(serializable, indent=2, sort_keys=True))
+
+
+def _cmd_find_affiliate_entities(args: argparse.Namespace) -> None:
+    """Find affiliate entities connected through relationship types."""
+
+    config = Config()
+    client = Neo4jClient(config=config)
+
+    with client:
+        entitydb = EntityDB(client)
+        records = entitydb.find_affiliate_entities(
             id=args.id,
             ticker=args.ticker,
             short_name=args.short_name,
@@ -169,6 +217,40 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum number of records to return (non-id lookups)",
     )
     p_find.set_defaults(func=_cmd_find_entity)
+
+    # find-affiliate-entities command
+    p_find_affiliate = subparsers.add_parser(
+        "find-affiliate-entities",
+        help="Find affiliate entities connected through relationship types",
+    )
+    p_find_affiliate.add_argument("--id", type=str, help="Neo4j internal node id", dest="id")
+    p_find_affiliate.add_argument("--ticker", type=str, help="Ticker symbol")
+    p_find_affiliate.add_argument("--short-name", type=str, help="Short name text")
+    p_find_affiliate.add_argument("--legal-name", type=str, help="Legal name text")
+    p_find_affiliate.add_argument(
+        "--limit",
+        type=int,
+        default=250,
+        help="Maximum number of entity records to return",
+    )
+    p_find_affiliate.set_defaults(func=_cmd_find_affiliate_entities)
+
+    # find-government-awards command
+    p_find_awards = subparsers.add_parser(
+        "find-government-awards",
+        help="Find government awards for an entity (RelationshipDetails with 'awarded_to' relationship type)",
+    )
+    p_find_awards.add_argument("--id", type=str, help="Neo4j internal node id", dest="id")
+    p_find_awards.add_argument("--ticker", type=str, help="Ticker symbol")
+    p_find_awards.add_argument("--short-name", type=str, help="Short name text")
+    p_find_awards.add_argument("--legal-name", type=str, help="Legal name text")
+    p_find_awards.add_argument(
+        "--limit",
+        type=int,
+        default=250,
+        help="Maximum number of RelationshipDetail records to return",
+    )
+    p_find_awards.set_defaults(func=_cmd_find_government_awards)
 
     # find-entity-by-relationship-embedding command
     p_find_by_emb = subparsers.add_parser(

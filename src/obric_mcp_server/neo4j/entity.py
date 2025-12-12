@@ -368,3 +368,71 @@ class EntityDB:
             {**record["entity"]} for record in records
         ]
 
+    def find_affiliate_entities(
+        self,
+        *,
+        id: Optional[str] = None,
+        ticker: Optional[str] = None,
+        short_name: Optional[str] = None,
+        legal_name: Optional[str] = None,
+        limit: int = 250,
+    ) -> List[Dict[str, Any]]:
+        """Find affiliate entities connected through relationship types.
+
+        Finds all "company" type entities connected through RelationshipDetail nodes
+        where the relationship_type is in the predefined relationship_types list.
+
+        Args:
+            id: Internal Neo4j node id. Highest priority if provided.
+            ticker: Ticker symbol. Used if id is not provided.
+            short_name: Short name text (possibly noisy).
+            legal_name: Legal name text (possibly noisy).
+            limit: Maximum number of entity records to return.
+
+        Returns:
+            List of entity records as dictionaries, each containing:
+                {<Entity node properties>}
+
+        Raises:
+            ValueError: If entity identification fails.
+        """
+        # Build match clause for the starting entity
+        match_clause, match_params = self._build_entity_match(
+            entity_var="start",
+            id=id,
+            ticker=ticker,
+            short_name=short_name,
+            legal_name=legal_name,
+        )
+
+        relationship_types = [
+            'subsidiary', 'parent_company', 'equity_acquisition', 'ownership', 'division_of',
+            'asset_acquisition', 'acquisition_of_equity', 'asset_purchase', 'acquisition', 'affiliate',
+            'affiliate_of', 'owner', 'ownership_interest', 'equity_holder', 'parent', 'sold_assets_to', 
+            'acquirer'
+        ]
+
+        params: Dict[str, Any] = {**match_params, "limit": limit, "relationship_types": relationship_types}
+
+        # Find all affiliate entities in both directions
+        # Case 1: start -> RD -> other
+        # Case 2: other -> RD -> start
+        cypher = f"""
+        {match_clause}
+        MATCH (start)-[]-(rd:RelationshipDetail)-[]-(other:Entity)
+        WHERE rd.relationship_type IN $relationship_types
+          AND other.entity_type = "company"
+          AND start.entity_type = "company"
+        WITH DISTINCT other AS entity, collect(DISTINCT rd.relationship_type) AS relationship_types
+        RETURN entity, relationship_types[0] AS relationship_type
+        LIMIT $limit
+        """
+
+        with self.client.session() as session:
+            result: Result = session.run(cypher, params)
+            records = result.data()
+
+        return [
+            {**record["entity"], "relationship_type": record["relationship_type"]} for record in records
+        ]
+

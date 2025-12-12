@@ -188,3 +188,89 @@ class RelationshipDetailsDB:
             records = result.data()
         return records
 
+    def find_government_awards(
+        self,
+        *,
+        id: Optional[str] = None,
+        ticker: Optional[str] = None,
+        short_name: Optional[str] = None,
+        legal_name: Optional[str] = None,
+        limit: int = 250,
+    ) -> List[Dict[str, Any]]:
+        """Find all RelationshipDetails where the entity or its affiliates were awarded to (government awards).
+
+        First finds all affiliate entities connected to the given entity, then finds
+        RelationshipDetail nodes where relationship_type is "awarded_to" for any of
+        these entities (including the original entity). Returns the RelationshipDetail
+        with the government agency name as "awarded_from".
+
+        Args:
+            id: Internal Neo4j node id. Highest priority if provided.
+            ticker: Ticker symbol. Used if id is not provided.
+            short_name: Short name text (possibly noisy).
+            legal_name: Legal name text (possibly noisy).
+            limit: Maximum number of RelationshipDetail records to return.
+
+        Returns:
+            List of records, each containing:
+                {
+                    <RelationshipDetail node properties>,
+                    "awarded_from": <government agency name (short_name or legal_name)>
+                }
+        """
+        # Build match clause for the entity
+        match_clause, match_params = self._build_entity_match(
+            entity_var="start",
+            id=id,
+            ticker=ticker,
+            short_name=short_name,
+            legal_name=legal_name,
+        )
+
+        # Relationship types for affiliate entities
+        relationship_types = [
+            'subsidiary', 'parent_company', 'equity_acquisition', 'ownership', 'division_of',
+            'asset_acquisition', 'acquisition_of_equity', 'asset_purchase', 'acquisition', 'affiliate',
+            'affiliate_of', 'owner', 'ownership_interest', 'equity_holder', 'parent', 'sold_assets_to', 
+            'acquirer'
+        ]
+
+        params: Dict[str, Any] = {**match_params, "limit": limit, "relationship_types": relationship_types}
+
+        # First find all affiliate entities (including the starting entity)
+        # Then find government awards for any of these entities
+        cypher = f"""
+        {match_clause}
+        // Find all affiliate entities connected to the starting entity
+        OPTIONAL MATCH (start)-[]-(affiliate_rd:RelationshipDetail)-[]-(affiliate:Entity)
+        WHERE affiliate_rd.relationship_type IN $relationship_types
+          AND affiliate.entity_type = "company"
+          AND start.entity_type = "company"
+        
+        // Collect all entities (starting entity + affiliates)
+        WITH start, collect(DISTINCT affiliate) AS affiliates
+        WITH [start] + [a IN affiliates WHERE a IS NOT NULL] AS all_entities
+        
+        // Unwind to get individual entities
+        UNWIND all_entities AS entity
+        
+        // Find government awards for any of these entities
+        MATCH (government_agency:Entity)-[]->(rd:RelationshipDetail)-[]->(entity)
+        WHERE rd.relationship_type = "awarded_to"
+        
+        WITH DISTINCT rd, 
+             COALESCE(government_agency.legal_name, government_agency.short_name, "") AS awarded_from,
+             COALESCE(entity.legal_name, entity.short_name, "") AS affiliate
+        RETURN rd.id as id, rd.source_url as source_url,
+        rd.description as description, awarded_from, affiliate as affiliate_entity
+        ORDER BY rd.created_at DESC
+        LIMIT $limit
+        """
+
+        with self.client.session() as session:
+            result: Result = session.run(cypher, params)
+            records = result.data()
+
+        # Return records with awarded_from and affiliate fields
+        return records
+

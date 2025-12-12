@@ -168,7 +168,7 @@ def find_entities_by_business_activity(
               "count": <int>,
               "results": [
                 {
-                  <Entity node properties>
+                  <Entity properties>
                 },
                 ...
               ]
@@ -197,6 +197,81 @@ def find_entities_by_business_activity(
         embedding=embedding,
         threshold=threshold,
         direction=direction,
+        limit=limit,
+    )
+
+    return {
+        "count": len(records),
+        "results": records,
+    }
+
+
+@tool()
+def find_affiliate_entities(
+    id: Optional[str] = None,
+    ticker: Optional[str] = None,
+    short_name: Optional[str] = None,
+    legal_name: Optional[str] = None,
+    limit: int = 250
+) -> Dict[str, Any]:
+    """Find affiliate entities. This tool finds all entities affiliated.
+
+    Use this tool when:
+        - You need to find all affiliate companies (subsidiaries, parents, or
+          related entities through ownership/acquisition relationships).
+        - You want to discover corporate relationships like parent-subsidiary,
+          ownership, or acquisition connections.
+        - You need to find entities connected through affiliate relationship types.
+
+    Priority for entity identification:
+    1. Internal entity id (exact match)
+    2. Ticker (case-insensitive exact match)
+    3. Short name / legal name (fuzzy CONTAINS search)
+
+    Args:
+        id: Internal entity id. Highest priority if provided.
+        ticker: Ticker symbol. Used if id is not provided.
+        short_name: Short name text (possibly noisy).
+        legal_name: Legal name text (possibly noisy).
+        limit: Maximum number of entity records to return. Default: 250.
+
+    Returns:
+        A JSON-serializable dict:
+
+            {
+              "count": <int>,
+              "results": [
+                {
+                  <Entity properties>
+                },
+                ...
+              ]
+            }
+
+    Example:
+        find_affiliate_entities(ticker="AAPL", limit=100)
+        {
+            "count": 15,
+            "results": [
+                {
+                    "id": "1234567890",
+                    "ticker": "BRCD",
+                    "short_name": "Beats Electronics",
+                    "entity_type": "company",
+                    "legal_name": "Beats Electronics LLC",
+                },
+                ...
+            ]
+        }
+
+        This will find all affiliate entities connected to Apple through
+        relationship types like subsidiary, parent_company, ownership, etc.
+    """
+    records = entitydb.find_affiliate_entities(
+        id=id,
+        ticker=ticker,
+        short_name=short_name,
+        legal_name=legal_name,
         limit=limit,
     )
 
