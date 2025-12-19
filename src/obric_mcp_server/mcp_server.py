@@ -17,6 +17,7 @@ from .tools import entity as entity_tools  # noqa: F401
 from .tools import neighbourhood as neighbourhood_tools  # noqa: F401
 from .tools import path as path_tools  # noqa: F401
 from .tools import relationships as relationships_tools  # noqa: F401
+from .tools import person as person_tools  # noqa: F401
 
 
 logger = logging.getLogger(__name__)

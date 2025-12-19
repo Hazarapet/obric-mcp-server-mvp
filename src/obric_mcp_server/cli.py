@@ -20,7 +20,14 @@ from typing import Any, Dict, List, Optional
 
 from .config import Config
 from .llm import EmbeddingClient
-from .neo4j import EntityDB, NeighbourhoodDB, Neo4jClient, PathDB, RelationshipDetailsDB
+from .neo4j import (
+    EntityDB,
+    NeighbourhoodDB,
+    Neo4jClient,
+    PathDB,
+    PersonDB,
+    RelationshipDetailsDB,
+)
 
 
 def _cmd_find_entity(args: argparse.Namespace) -> None:
@@ -69,7 +76,7 @@ def _cmd_find_government_awards(args: argparse.Namespace) -> None:
         "results": records,
     }
 
-    print(json.dumps(serializable, indent=2, sort_keys=True))
+    print(json.dumps(serializable, indent=2, sort_keys=True, default=str))
 
 
 def _cmd_find_affiliate_entities(args: argparse.Namespace) -> None:
@@ -94,6 +101,86 @@ def _cmd_find_affiliate_entities(args: argparse.Namespace) -> None:
     }
 
     print(json.dumps(serializable, indent=2, sort_keys=True))
+
+
+def _cmd_find_recent_insider_activites(args: argparse.Namespace) -> None:
+    """Find recent insider RelationshipDetails for an entity."""
+
+    config = Config()
+    client = Neo4jClient(config=config)
+
+    with client:
+        relationship_details_db = RelationshipDetailsDB(client)
+        records = relationship_details_db.find_recent_insider_activites(
+            id=args.id,
+            ticker=args.ticker,
+            short_name=args.short_name,
+            legal_name=args.legal_name,
+            start_date=args.start_date,
+            limit=args.limit,
+        )
+
+    serializable: Dict[str, Any] = {
+        "count": len(records),
+        "results": records,
+    }
+
+    # Use default=str to serialize Neo4j temporal types (e.g. DateTime) as strings.
+    print(json.dumps(serializable, indent=2, sort_keys=True, default=str))
+
+
+def _cmd_find_person_entity_relationships(args: argparse.Namespace) -> None:
+    """Find RelationshipDetails between an entity and a specific person."""
+
+    config = Config()
+    client = Neo4jClient(config=config)
+
+    with client:
+        relationship_details_db = RelationshipDetailsDB(client)
+        records = relationship_details_db.find_person_entity_relationships(
+            id=args.id,
+            ticker=args.ticker,
+            short_name=args.short_name,
+            legal_name=args.legal_name,
+            person_id=args.person_id,
+            person_name=args.person_name,
+            person_sec_cik=args.person_sec_cik,
+            start_date=args.start_date,
+            limit=args.limit,
+        )
+
+    serializable: Dict[str, Any] = {
+        "count": len(records),
+        "results": records,
+    }
+
+    # Neo4j may return temporal types (e.g. DateTime) that aren't JSON-serializable
+    # by default; use default=str to render them as ISO-like strings.
+    print(json.dumps(serializable, indent=2, sort_keys=True, default=str))
+
+
+def _cmd_find_people_by_entity(args: argparse.Namespace) -> None:
+    """Find people connected to an entity via RelationshipDetails."""
+
+    config = Config()
+    client = Neo4jClient(config=config)
+
+    with client:
+        person_db = PersonDB(client)
+        records = person_db.find_people_by_entity(
+            id=args.id,
+            ticker=args.ticker,
+            short_name=args.short_name,
+            legal_name=args.legal_name,
+            limit=args.limit,
+        )
+
+    serializable: Dict[str, Any] = {
+        "count": len(records),
+        "results": records,
+    }
+
+    print(json.dumps(serializable, indent=2, sort_keys=True, default=str))
 
 
 def _cmd_find_entity_by_relationship_embedding(args: argparse.Namespace) -> None:
@@ -251,6 +338,128 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum number of RelationshipDetail records to return",
     )
     p_find_awards.set_defaults(func=_cmd_find_government_awards)
+
+    # find-recent-insider-activites command
+    p_find_insider = subparsers.add_parser(
+        "find-recent-insider-activites",
+        help=(
+            "Find recent insider RelationshipDetails for an entity. "
+            "Uses the 'Insider' sublabel and optional start_date filter."
+        ),
+    )
+    p_find_insider.add_argument(
+        "--id", type=str, help="Neo4j internal node id", dest="id"
+    )
+    p_find_insider.add_argument(
+        "--ticker", type=str, help="Ticker symbol for the entity"
+    )
+    p_find_insider.add_argument(
+        "--short-name", type=str, help="Short name text for the entity"
+    )
+    p_find_insider.add_argument(
+        "--legal-name", type=str, help="Legal name text for the entity"
+    )
+    p_find_insider.add_argument(
+        "--start-date",
+        type=str,
+        default=None,
+        help=(
+            "Optional lower bound (exclusive) for event_date, e.g. '2024-01-01'. "
+            "If omitted, all insider activities are returned."
+        ),
+        dest="start_date",
+    )
+    p_find_insider.add_argument(
+        "--limit",
+        type=int,
+        default=250,
+        help="Maximum number of RelationshipDetail records to return",
+    )
+    p_find_insider.set_defaults(func=_cmd_find_recent_insider_activites)
+
+    # find-person-entity-relationships command
+    p_find_person_entity_rels = subparsers.add_parser(
+        "find-person-entity-relationships",
+        help=(
+            "Find RelationshipDetails between an entity and a specific person "
+            "(all relationship types, optional start_date filter)"
+        ),
+    )
+    # Entity arguments
+    p_find_person_entity_rels.add_argument(
+        "--id", type=str, help="Neo4j internal node id for the entity", dest="id"
+    )
+    p_find_person_entity_rels.add_argument(
+        "--ticker", type=str, help="Ticker symbol for the entity"
+    )
+    p_find_person_entity_rels.add_argument(
+        "--short-name", type=str, help="Short name text for the entity"
+    )
+    p_find_person_entity_rels.add_argument(
+        "--legal-name", type=str, help="Legal name text for the entity"
+    )
+    # Person arguments
+    p_find_person_entity_rels.add_argument(
+        "--person-id", type=str, help="Internal person id", dest="person_id"
+    )
+    p_find_person_entity_rels.add_argument(
+        "--person-name",
+        type=str,
+        help="Person name (case-insensitive exact match in DB)",
+        dest="person_name",
+    )
+    p_find_person_entity_rels.add_argument(
+        "--person-sec-cik",
+        type=str,
+        help="Person SEC CIK identifier (case-insensitive exact match)",
+        dest="person_sec_cik",
+    )
+    # Optional start_date
+    p_find_person_entity_rels.add_argument(
+        "--start-date",
+        type=str,
+        default=None,
+        help=(
+            "Optional lower bound (exclusive) for event_date, e.g. '2024-01-01'. "
+            "If omitted, all dates are included."
+        ),
+        dest="start_date",
+    )
+    p_find_person_entity_rels.add_argument(
+        "--limit",
+        type=int,
+        default=250,
+        help="Maximum number of RelationshipDetail records to return",
+    )
+    p_find_person_entity_rels.set_defaults(func=_cmd_find_person_entity_relationships)
+
+    # find-people-by-entity command
+    p_find_people_by_entity = subparsers.add_parser(
+        "find-people-by-entity",
+        help=(
+            "Find Person nodes connected to an entity via RelationshipDetail "
+            "segments (Entity - RelationshipDetail - Person)."
+        ),
+    )
+    p_find_people_by_entity.add_argument(
+        "--id", type=str, help="Neo4j internal node id for the entity", dest="id"
+    )
+    p_find_people_by_entity.add_argument(
+        "--ticker", type=str, help="Ticker symbol for the entity"
+    )
+    p_find_people_by_entity.add_argument(
+        "--short-name", type=str, help="Short name text for the entity"
+    )
+    p_find_people_by_entity.add_argument(
+        "--legal-name", type=str, help="Legal name text for the entity"
+    )
+    p_find_people_by_entity.add_argument(
+        "--limit",
+        type=int,
+        default=250,
+        help="Maximum number of Person records to return",
+    )
+    p_find_people_by_entity.set_defaults(func=_cmd_find_people_by_entity)
 
     # find-entity-by-relationship-embedding command
     p_find_by_emb = subparsers.add_parser(
