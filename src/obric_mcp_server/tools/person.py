@@ -5,9 +5,11 @@ This module exposes `PersonDB` methods as MCP tools.
 
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, Optional
 
 from ..mcp_instance import persondb, tool
+from .utils import log_mcp_tool
 
 
 @tool()
@@ -39,7 +41,22 @@ def query_person(
               "results": [ { dict(), ... }, ... ]
             }
     """
+    start_time = time.time()
+    log_mcp_tool("query_person", "called", {
+        "id": id,
+        "name": name,
+        "limit": limit,
+    })
+
     records = persondb.query_person(id=id, name=name, limit=limit)
+
+    duration = time.time() - start_time
+    log_mcp_tool("query_person", "completed", {
+        "id": id,
+        "name": name,
+        "limit": limit,
+        "result_count": len(records),
+    }, duration=duration)
 
     return {
         "count": len(records),
@@ -88,6 +105,15 @@ def find_people_by_entity(
               ]
             }
     """
+    start_time = time.time()
+    log_mcp_tool("find_people_by_entity", "called", {
+        "id": id,
+        "ticker": ticker,
+        "short_name": short_name,
+        "legal_name": legal_name,
+        "limit": limit,
+    })
+
     records = persondb.find_people_by_entity(
         id=id,
         ticker=ticker,
@@ -95,6 +121,16 @@ def find_people_by_entity(
         legal_name=legal_name,
         limit=limit,
     )
+
+    duration = time.time() - start_time
+    log_mcp_tool("find_people_by_entity", "completed", {
+        "id": id,
+        "ticker": ticker,
+        "short_name": short_name,
+        "legal_name": legal_name,
+        "limit": limit,
+        "result_count": len(records),
+    }, duration=duration)
 
     return {
         "count": len(records),

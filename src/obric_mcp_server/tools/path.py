@@ -6,9 +6,11 @@ They are focused on tier-based neighborhood queries and path analysis.
 
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, List, Optional
 
 from ..mcp_instance import pathdb, tool
+from .utils import log_mcp_tool
 
 
 @tool()
@@ -125,6 +127,21 @@ def find_paths_between_entities(
           ]
         }
     """
+    start_time = time.time()
+    log_mcp_tool("find_paths_between_entities", "called", {
+        "id1": id1,
+        "ticker1": ticker1,
+        "short_name1": short_name1,
+        "legal_name1": legal_name1,
+        "id2": id2,
+        "ticker2": ticker2,
+        "short_name2": short_name2,
+        "legal_name2": legal_name2,
+        "direction": direction,
+        "max_tier": max_tier,
+        "max_paths": max_paths,
+    })
+
     paths = pathdb.find_paths_between_entities(
         id1=id1,
         ticker1=ticker1,
@@ -138,6 +155,22 @@ def find_paths_between_entities(
         max_tier=max_tier,
         max_paths=max_paths,
     )
+
+    duration = time.time() - start_time
+    log_mcp_tool("find_paths_between_entities", "completed", {
+        "id1": id1,
+        "ticker1": ticker1,
+        "short_name1": short_name1,
+        "legal_name1": legal_name1,
+        "id2": id2,
+        "ticker2": ticker2,
+        "short_name2": short_name2,
+        "legal_name2": legal_name2,
+        "direction": direction,
+        "max_tier": max_tier,
+        "max_paths": max_paths,
+        "result_count": len(paths),
+    }, duration=duration)
 
     return {
         "count": len(paths),

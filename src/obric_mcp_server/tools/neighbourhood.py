@@ -6,9 +6,11 @@ They are focused on finding connected entities within tier ranges.
 
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, List, Optional
 
 from ..mcp_instance import neighbourhooddb, tool
+from .utils import log_mcp_tool
 
 
 @tool()
@@ -83,6 +85,18 @@ def find_related_entities(
           ]
         }
     """
+    start_time = time.time()
+    log_mcp_tool("find_related_entities", "called", {
+        "id": id,
+        "ticker": ticker,
+        "short_name": short_name,
+        "legal_name": legal_name,
+        "min_tier": min_tier,
+        "max_tier": max_tier,
+        "direction": direction,
+        "limit": limit,
+    })
+
     records: List[Dict[str, Any]] = neighbourhooddb.find_connected_entities(
         id=id,
         ticker=ticker,
@@ -93,6 +107,19 @@ def find_related_entities(
         direction=direction,
         limit=limit,
     )
+
+    duration = time.time() - start_time
+    log_mcp_tool("find_related_entities", "completed", {
+        "id": id,
+        "ticker": ticker,
+        "short_name": short_name,
+        "legal_name": legal_name,
+        "min_tier": min_tier,
+        "max_tier": max_tier,
+        "direction": direction,
+        "limit": limit,
+        "result_count": len(records),
+    }, duration=duration)
 
     return {
         "count": len(records),

@@ -5,9 +5,11 @@ This module exposes `EntityDB` entity methods as MCP tools.
 
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, List, Optional
 
 from ..mcp_instance import embedding_client, entitydb, tool
+from .utils import log_mcp_tool
 
 
 @tool()
@@ -57,10 +59,20 @@ def query_entities(
 
         This will find entities where "energy" appears in any of the searchable fields.
     """
+    start_time = time.time()
+    log_mcp_tool("query_entities", "called", {"query": query, "limit": limit})
+
     records = entitydb.query_entity(
         query=query,
         limit=limit,
     )
+
+    duration = time.time() - start_time
+    log_mcp_tool("query_entities", "completed", {
+        "query": query,
+        "limit": limit,
+        "result_count": len(records),
+    }, duration=duration)
 
     return {
         "count": len(records),
@@ -124,8 +136,17 @@ def find_entities_by_business_activity(
             ]
         }
     """
+    start_time = time.time()
+    log_mcp_tool("find_entities_by_business_activity", "called", {
+        "query": query,
+        "direction": direction,
+        "threshold": threshold,
+        "limit": limit,
+    })
+
     # Generate embedding from query text
     embedding = embedding_client.embed_text(query)
+    embedding_dim = len(embedding) if embedding else 0
 
     # Find entities using embedding similarity
     records = entitydb.find_entity_by_relationship_embedding(
@@ -134,6 +155,16 @@ def find_entities_by_business_activity(
         direction=direction,
         limit=limit,
     )
+
+    duration = time.time() - start_time
+    log_mcp_tool("find_entities_by_business_activity", "completed", {
+        "query": query,
+        "direction": direction,
+        "threshold": threshold,
+        "limit": limit,
+        "result_count": len(records),
+        "embedding_dimensions": embedding_dim,
+    }, duration=duration)
 
     return {
         "count": len(records),
@@ -202,6 +233,15 @@ def find_affiliate_entities(
         This will find all affiliate entities connected to Apple through
         relationship types like subsidiary, parent_company, ownership, etc.
     """
+    start_time = time.time()
+    log_mcp_tool("find_affiliate_entities", "called", {
+        "id": id,
+        "ticker": ticker,
+        "short_name": short_name,
+        "legal_name": legal_name,
+        "limit": limit,
+    })
+
     records = entitydb.find_affiliate_entities(
         id=id,
         ticker=ticker,
@@ -209,6 +249,16 @@ def find_affiliate_entities(
         legal_name=legal_name,
         limit=limit,
     )
+
+    duration = time.time() - start_time
+    log_mcp_tool("find_affiliate_entities", "completed", {
+        "id": id,
+        "ticker": ticker,
+        "short_name": short_name,
+        "legal_name": legal_name,
+        "limit": limit,
+        "result_count": len(records),
+    }, duration=duration)
 
     return {
         "count": len(records),

@@ -5,9 +5,11 @@ This module exposes `RelationshipDetailsDB` methods as MCP tools.
 
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, Optional
 
 from ..mcp_instance import relationship_detailsdb, tool
+from .utils import log_mcp_tool
 
 
 @tool()
@@ -77,6 +79,15 @@ def find_government_awards(
 
         This will find all government awards given to Apple and its affiliate companies.
     """
+    start_time = time.time()
+    log_mcp_tool("find_government_awards", "called", {
+        "id": id,
+        "ticker": ticker,
+        "short_name": short_name,
+        "legal_name": legal_name,
+        "limit": limit,
+    })
+
     records = relationship_detailsdb.find_government_awards(
         id=id,
         ticker=ticker,
@@ -84,6 +95,16 @@ def find_government_awards(
         legal_name=legal_name,
         limit=limit,
     )
+
+    duration = time.time() - start_time
+    log_mcp_tool("find_government_awards", "completed", {
+        "id": id,
+        "ticker": ticker,
+        "short_name": short_name,
+        "legal_name": legal_name,
+        "limit": limit,
+        "result_count": len(records),
+    }, duration=duration)
 
     return {
         "count": len(records),
@@ -142,6 +163,16 @@ def find_recent_insider_activities(
               ]
             }
     """
+    start_time = time.time()
+    log_mcp_tool("find_recent_insider_activities", "called", {
+        "id": id,
+        "ticker": ticker,
+        "short_name": short_name,
+        "legal_name": legal_name,
+        "start_date": start_date,
+        "limit": limit,
+    })
+
     records = relationship_detailsdb.find_recent_insider_activites(
         id=id,
         ticker=ticker,
@@ -150,6 +181,17 @@ def find_recent_insider_activities(
         start_date=start_date,
         limit=limit,
     )
+
+    duration = time.time() - start_time
+    log_mcp_tool("find_recent_insider_activities", "completed", {
+        "id": id,
+        "ticker": ticker,
+        "short_name": short_name,
+        "legal_name": legal_name,
+        "start_date": start_date,
+        "limit": limit,
+        "result_count": len(records),
+    }, duration=duration)
 
     return {
         "count": len(records),
@@ -222,6 +264,19 @@ def find_person_entity_relationships(
               ]
             }
     """
+    start_time = time.time()
+    log_mcp_tool("find_person_entity_relationships", "called", {
+        "id": id,
+        "ticker": ticker,
+        "short_name": short_name,
+        "legal_name": legal_name,
+        "person_id": person_id,
+        "person_name": person_name,
+        "person_sec_cik": person_sec_cik,
+        "start_date": start_date,
+        "limit": limit,
+    })
+
     records = relationship_detailsdb.find_person_entity_relationships(
         id=id,
         ticker=ticker,
@@ -233,6 +288,20 @@ def find_person_entity_relationships(
         start_date=start_date,
         limit=limit,
     )
+
+    duration = time.time() - start_time
+    log_mcp_tool("find_person_entity_relationships", "completed", {
+        "id": id,
+        "ticker": ticker,
+        "short_name": short_name,
+        "legal_name": legal_name,
+        "person_id": person_id,
+        "person_name": person_name,
+        "person_sec_cik": person_sec_cik,
+        "start_date": start_date,
+        "limit": limit,
+        "result_count": len(records),
+    }, duration=duration)
 
     return {
         "count": len(records),

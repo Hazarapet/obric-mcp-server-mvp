@@ -57,6 +57,6 @@ __all__ = [
     "pathdb",
     "relationship_detailsdb",
     "persondb",
-    "embedding_client",
+    "embedding_client"
 ]
 
