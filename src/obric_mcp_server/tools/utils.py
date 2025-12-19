@@ -4,7 +4,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
 
-mcp_tools_logger = logging.getLogger('obric_mcp_server.tools')
+mcp_tools_logger = logging.getLogger('obric.mcp.tools')
+
 
 def log_mcp_tool(function_name: str, phase: str, extra: Dict[str, Any], duration: Optional[float] = None) -> None:
     """Helper function to log MCP tool calls and completions.

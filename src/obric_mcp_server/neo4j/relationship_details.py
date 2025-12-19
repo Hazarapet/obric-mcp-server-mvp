@@ -275,7 +275,7 @@ class RelationshipDetailsDB:
                rd.description as description,
                rd.relationship_type as relationship_type,
                rd.source_url as source_url,
-               rd.event_date as event_date,
+               toString(rd.event_date) as event_date,
                rd.created_at as created_at
         ORDER BY rd.event_date DESC, rd.created_at DESC
         LIMIT $limit
@@ -374,7 +374,7 @@ class RelationshipDetailsDB:
                rd.description as description,
                rd.relationship_type as relationship_type,
                rd.source_url as source_url,
-               rd.event_date as event_date,
+               toString(rd.event_date) as event_date,
                rd.created_at as created_at
         ORDER BY rd.event_date DESC, rd.created_at DESC
         LIMIT $limit
